@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô Phỏng Quang Hình Học</title>
+    <style>
+        body {
+            margin: 0; padding: 20px;
+            background: linear-gradient(135deg, #8E54E9 0%, #4776E6 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; height: 100vh; box-sizing: border-box; gap: 20px;
+            overflow: hidden;
+        }
+        
+        .workspace {
+            flex: 3; background-color: #ffffff;
+            border-radius: 15px; position: relative;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+            overflow: hidden;
+            background-image: 
+                linear-gradient(rgba(52, 152, 219, 0.2) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(52, 152, 219, 0.2) 1px, transparent 1px),
+                linear-gradient(rgba(52, 152, 219, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(52, 152, 219, 0.05) 1px, transparent 1px);
+            background-size: 100px 100px, 100px 100px, 20px 20px, 20px 20px;
+            background-position: -1px -1px, -1px -1px, -1px -1px, -1px -1px;
+        }
+        
+        .menu {
+            flex: 1; background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 15px; padding: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+            overflow-y: auto; display: flex; flex-direction: column; gap: 12px;
+            border: 1px solid rgba(255,255,255,0.5);
+        }
+        h2 { margin: 0 0 5px 0; color: #1e272e; font-size: 1.3rem; text-align: center; text-transform: uppercase; letter-spacing: 1px;}
+        .btn-group { display: flex; gap: 10px; }
+        button {
+            flex: 1; padding: 10px; border: none; border-radius: 8px;
+            cursor: pointer; font-weight: bold; color: white; transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:active { transform: translateY(2px); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .btn-ht { background: linear-gradient(135deg, #11998e, #38ef7d); }
+        .btn-pk { background: linear-gradient(135deg, #ff416c, #ff4b2b); }
+        .btn-s { background: linear-gradient(135deg, #f39c12, #e67e22); }
+        .btn-ab { background: linear-gradient(135deg, #2980b9, #3498db); }
+        .btn-clear { background: linear-gradient(135deg, #606c88, #3f4c6b); width: 100%; margin-top: 5px; }
+        
+        .control-group { background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #dee2e6; }
+        .control-group label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 0.85rem; color: #2c3e50; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        canvas { display: block; width: 100%; height: 100%; cursor: grab; }
+        canvas:active { cursor: grabbing; }
+        
+        .checkbox-group label { display: flex; align-items: center; gap: 8px; font-weight: normal; margin-bottom: 8px; cursor: pointer; font-size: 0.9rem;}
+        .lens-controls { display: flex; flex-direction: column; gap: 10px;}
+        .info-box {
+            background: #eef2f7; border-left: 5px solid #3498db; padding: 10px 12px;
+            border-radius: 4px; font-size: 0.85rem; line-height: 1.5; color: #2c3e50;
+            max-height: 300px; overflow-y: auto;
+        }
+        hr { border: 0; border-top: 1px dashed #ccc; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="workspace">
+        <canvas id="simCanvas"></canvas>
+    </div>
+
+    <div class="menu">
+        <h2>🔬 QUANG HỌC </h2>
+        
+        <div class="btn-group">
+            <button class="btn-ht" onclick="addLens('HT')">+ Kính Hội Tụ</button>
+            <button class="btn-pk" onclick="addLens('PK')">+ Kính Phân Kỳ</button>
+        </div>
+        <div class="btn-group">
+            <button class="btn-s" onclick="addObject('S')">+ Điểm Sáng S</button>
+            <button class="btn-ab" onclick="addObject('AB')">+ Vật AB</button>
+        </div>
+        <button class="btn-clear" onclick="clearAll()">🗑 Xóa tất cả</button>
+
+        <div id="lensContainer" class="lens-controls"></div>
+        <div id="objContainer" class="lens-controls"></div>
+
+        <div class="control-group">
+            <label>⏱ Tốc độ tia sáng: <span id="speedVal">Bình thường</span></label>
+            <input type="range" id="animSpeed" min="2" max="30" step="1" value="15" oninput="updateSpeed()">
+        </div>
+
+        <div class="control-group checkbox-group">
+            <label><b>Chọn tia sáng để dựng ảnh:</b></label>
+            <label><input type="checkbox" id="ray1" checked onchange="triggerRay()"> Tia song song trục chính</label>
+            <label><input type="checkbox" id="ray2" checked onchange="triggerRay()"> Tia qua quang tâm O</label>
+            <label><input type="checkbox" id="ray3" onchange="triggerRay()"> Tia qua tiêu điểm F</label>
+            <hr>
+            <label style="color:#d35400; font-weight: bold;"><input type="checkbox" id="ray4" onchange="triggerRay()"> ⚡ Tia bất kỳ</label>
+        </div>
+
+        <div class="info-box" id="imageStats">
+            <b>Thông số hệ kính:</b> Đang tính toán...
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    let w, h, centerY;
+    let lenses = [];
+    let objects = [];
+    let dragging = null;
+    
+    let currentDist = 0;
+    let animSpeed = 15; 
+    let isAnimating = false;
+    let labelsToDraw = []; 
+
+    function resize() {
+        w = canvas.clientWidth; h = canvas.clientHeight;
+        canvas.width = w; canvas.height = h;
+        centerY = h / 2;
+        objects.forEach(obj => { if(obj.y > h) obj.y = centerY - 50; });
+        draw();
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    function addLens(type) {
+        let startX = lenses.length > 0 ? lenses[lenses.length-1].x + 150 : w / 2;
+        lenses.push({ id: Date.now(), type: type, x: startX, f: type === 'HT' ? 120 : -120 });
+        renderControls(); triggerRay();
+    }
+
+    function addObject(type) {
+        objects.push({ 
+            id: Date.now() + Math.random(), type: type, 
+            x: 80 + Math.random() * 50, y: centerY - 70, h: 70, angle: 0 
+        });
+        renderControls(); triggerRay();
+    }
+
+    function clearAll() { lenses = []; objects = []; renderControls(); triggerRay(); }
+
+    function updateSpeed() {
+        animSpeed = parseFloat(document.getElementById('animSpeed').value);
+        let txt = animSpeed < 8 ? 'Rất chậm' : (animSpeed < 20 ? 'Bình thường' : 'Nhanh');
+        document.getElementById('speedVal').innerText = txt;
+    }
+
+    function renderControls() {
+        const lCont = document.getElementById('lensContainer');
+        lCont.innerHTML = '';
+        lenses.sort((a,b) => a.x - b.x).forEach((lens, i) => {
+            lCont.innerHTML += `
+                <div class="control-group">
+                    <label>TK ${i + 1} (${lens.type}) - f = <span id="fval_${lens.id}">${lens.f}</span> cm</label>
+                    <input type="range" min="${lens.type==='HT'? 50 : -200}" max="${lens.type==='HT'? 200 : -50}" value="${lens.f}" oninput="updateF(${lens.id}, this.value)">
+                </div>
+            `;
+        });
+        const oCont = document.getElementById('objContainer');
+        oCont.innerHTML = '';
+        objects.forEach((obj, i) => {
+            if (obj.type === 'AB') {
+                oCont.innerHTML += `
+                    <div class="control-group">
+                        <label>Vật ${i + 1} (AB)</label>
+                        <div style="margin-top: 5px;">
+                            <span style="font-size: 0.8rem;">Góc nghiêng: <span id="aval_${obj.id}">${obj.angle}</span>°</span>
+                            <input type="range" min="-60" max="60" value="${obj.angle}" oninput="updateAngle(${obj.id}, this.value)">
+                        </div>
+                        <div style="margin-top: 5px;">
+                            <span style="font-size: 0.8rem;">Chiều cao: <span id="hval_${obj.id}">${obj.h}</span> cm</span>
+                            <input type="range" min="20" max="200" value="${obj.h}" oninput="updateHeight(${obj.id}, this.value)">
+                        </div>
+                    </div>
+                `;
+            }
+        });
+    }
+
+    function updateF(id, val) {
+        let lens = lenses.find(l => l.id === id);
+        if(lens) { lens.f = parseInt(val); document.getElementById(`fval_${id}`).innerText = val; triggerRay(); }
+    }
+    
+    function updateAngle(id, val) {
+        let obj = objects.find(o => o.id === id);
+        if(obj) { obj.angle = parseInt(val); document.getElementById(`aval_${id}`).innerText = val; triggerRay(); }
+    }
+
+    function updateHeight(id, val) {
+        let obj = objects.find(o => o.id === id);
+        if(obj) { obj.h = parseInt(val); document.getElementById(`hval_${id}`).innerText = val; triggerRay(); }
+    }
+
+    function getImagePoint(p, lens) {
+        let d = lens.x - p.x; 
+        if(Math.abs(d) < 0.1) return { x: p.x, y: p.y, isVirtual: true, d: 0, d_prime: 0, k: 1 };
+        
+        let d_prime = (d * lens.f) / (d - lens.f);
+        let xi = lens.x + d_prime;
+        let k = -d_prime / d;
+        let yi = centerY + (p.y - centerY) * k;
+        
+        return { x: xi, y: yi, isVirtual: d_prime < 0, infinitelyFar: Math.abs(d - lens.f) < 0.5, d: d, d_prime: d_prime, k: k };
+    }
+
+    function buildPathData(startPt, imgChain, firstHitY) {
+        let path = [startPt];
+        let curH = {x: lenses[0].x, y: firstHitY};
+        path.push(curH);
+        let accDist = Math.hypot(curH.x - startPt.x, curH.y - startPt.y);
+        let virtualExtensions = [];
+        
+        for(let i = 0; i < lenses.length; i++) {
+            let imgP = imgChain[i+1];
+            let curL = lenses[i];
+            
+            if (imgP.x <= curL.x || imgP.isVirtual) {
+                virtualExtensions.push({ from: curH, to: imgP, triggerDist: accDist });
+            }
+            
+            if (i < lenses.length - 1) {
+                let nextL = lenses[i+1];
+                let dx = imgP.x - curH.x;
+                let dy = imgP.y - curH.y;
+                let nextHy;
+                if (Math.abs(dx) < 0.1) {
+                    nextHy = (dy > 0) ? curH.y + 2000 : curH.y - 2000;
+                } else {
+                    let slope = dy / dx;
+                    nextHy = curH.y + slope * (nextL.x - curH.x); 
+                }
+                let nextH = {x: nextL.x, y: nextHy};
+                path.push(nextH);
+                accDist += Math.hypot(nextH.x - curH.x, nextH.y - curH.y);
+                curH = nextH;
+            } else {
+                let dx = imgP.x - curH.x;
+                let dy = imgP.y - curH.y;
+                let finalX, finalY;
+                if (Math.abs(dx) < 0.1) {
+                    finalX = curH.x;
+                    finalY = (dy > 0) ? curH.y + 2000 : curH.y - 2000;
+                } else {
+                    let slope = dy / dx;
+                    finalX = curH.x + 2000; 
+                    finalY = curH.y + slope * (finalX - curH.x);
+                }
+                path.push({x: finalX, y: finalY});
+            }
+        }
+        return { path, virtualExtensions };
+    }
+
+    function triggerRay() { currentDist = 0; if(!isAnimating) { isAnimating = true; animateRays(); } }
+    function animateRays() { currentDist += animSpeed; if(currentDist > 4000) { currentDist = 4000; isAnimating = false; } draw(); if(isAnimating) requestAnimationFrame(animateRays); }
+
+    function drawMultiLensRay(pathData, color) {
+        let pts = pathData.path;
+        let currentPathLen = 0;
+        let drawnSegments = []; 
+
+        ctx.beginPath(); 
+        ctx.strokeStyle = color; 
+        ctx.lineWidth = 2.5; 
+        ctx.moveTo(pts[0].x, pts[0].y);
+        
+        for(let i=0; i<pts.length-1; i++) {
+            let p1 = pts[i]; let p2 = pts[i+1];
+            let segLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            
+            if (currentDist >= currentPathLen + segLen) {
+                ctx.lineTo(p2.x, p2.y);
+                drawnSegments.push({p1: p1, p2: p2});
+            } else if (currentDist > currentPathLen) {
+                let ratio = (currentDist - currentPathLen) / segLen;
+                let curPt = { x: p1.x + (p2.x - p1.x)*ratio, y: p1.y + (p2.y - p1.y)*ratio };
+                ctx.lineTo(curPt.x, curPt.y);
+                drawnSegments.push({p1: p1, p2: curPt});
+                break;
+            }
+            currentPathLen += segLen;
+        }
+        ctx.stroke(); 
+        
+        drawnSegments.forEach(seg => {
+            if(Math.hypot(seg.p2.x - seg.p1.x, seg.p2.y - seg.p1.y) > 15) { 
+                drawArrowOnLine(seg.p1, seg.p2, color);
+            }
+        });
+
+        pathData.virtualExtensions.forEach((ext) => {
+            if (currentDist >= ext.triggerDist) {
+                 ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.setLineDash([4,4]);
+                 ctx.moveTo(ext.from.x, ext.from.y); ctx.lineTo(ext.to.x, ext.to.y);
+                 ctx.stroke(); ctx.setLineDash([]);
+            }
+        });
+    }
+
+    function drawArrowOnLine(p1, p2, color) {
+        let angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+        let midX = (p1.x + p2.x)/2; let midY = (p1.y + p2.y)/2;
+        ctx.beginPath(); ctx.fillStyle = color; ctx.moveTo(midX, midY);
+        ctx.lineTo(midX - 9 * Math.cos(angle - Math.PI/6), midY - 9 * Math.sin(angle - Math.PI/6));
+        ctx.lineTo(midX - 9 * Math.cos(angle + Math.PI/6), midY - 9 * Math.sin(angle + Math.PI/6)); ctx.fill();
+    }
+    function drawArrowHead(pFrom, pTo, color) {
+        let angle = Math.atan2(pTo.y - pFrom.y, pTo.x - pFrom.x);
+        ctx.beginPath(); ctx.fillStyle = color; ctx.moveTo(pTo.x, pTo.y);
+        ctx.lineTo(pTo.x - 12 * Math.cos(angle - Math.PI/6), pTo.y - 12 * Math.sin(angle - Math.PI/6));
+        ctx.lineTo(pTo.x - 12 * Math.cos(angle + Math.PI/6), pTo.y - 12 * Math.sin(angle + Math.PI/6)); ctx.fill();
+    }
+
+    function addLabel(text, x, y, color = '#000', font = 'bold 14px sans-serif') {
+        labelsToDraw.push({ text, x, y, color, font });
+    }
+    function drawLabels() {
+        labelsToDraw.forEach(lbl => {
+            ctx.font = lbl.font; ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'; ctx.lineWidth = 4;
+            ctx.strokeText(lbl.text, lbl.x, lbl.y); ctx.fillStyle = lbl.color; ctx.fillText(lbl.text, lbl.x, lbl.y);
+        });
+        labelsToDraw = []; 
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, w, h);
+        labelsToDraw = []; 
+        
+        ctx.beginPath(); ctx.strokeStyle = '#7f8c8d'; ctx.lineWidth = 1.5; ctx.setLineDash([6, 6]);
+        ctx.moveTo(0, centerY); ctx.lineTo(w, centerY); ctx.stroke(); ctx.setLineDash([]);
+        addLabel('Trục chính (Δ)', 15, centerY - 10, '#34495e', '13px sans-serif');
+
+        lenses.sort((a,b) => a.x - b.x).forEach((lens, index) => {
+            ctx.beginPath(); ctx.strokeStyle = '#2c3e50'; ctx.lineWidth = 3;
+            ctx.moveTo(lens.x, centerY - 160); ctx.lineTo(lens.x, centerY + 160); ctx.stroke();
+            
+            ctx.beginPath(); ctx.fillStyle = '#2c3e50';
+            if(lens.type === 'HT') {
+                ctx.moveTo(lens.x, centerY - 160); ctx.lineTo(lens.x - 6, centerY - 148); ctx.lineTo(lens.x + 6, centerY - 148); ctx.fill();
+                // FIX LỖI Ở ĐÂY: Đổi centerY - 148 thành centerY + 148
+                ctx.moveTo(lens.x, centerY + 160); ctx.lineTo(lens.x - 6, centerY + 148); ctx.lineTo(lens.x + 6, centerY + 148); ctx.fill();
+            } else {
+                ctx.moveTo(lens.x - 7, centerY - 160); ctx.lineTo(lens.x + 7, centerY - 160); ctx.lineTo(lens.x, centerY - 148); ctx.fill();
+                ctx.moveTo(lens.x - 7, centerY + 160); ctx.lineTo(lens.x + 7, centerY + 160); ctx.lineTo(lens.x, centerY + 148); ctx.fill();
+            }
+            let absF = Math.abs(lens.f);
+            let f_Vat = lens.type === 'HT' ? lens.x - absF : lens.x + absF;
+            let f_Anh = lens.type === 'HT' ? lens.x + absF : lens.x - absF;
+
+            ctx.fillStyle = '#c0392b'; ctx.beginPath(); ctx.arc(lens.x, centerY, 4.5, 0, Math.PI*2); ctx.fill();
+            addLabel('O'+(index+1), lens.x + 6, centerY + 18, '#c0392b');
+            ctx.beginPath(); ctx.arc(f_Vat, centerY, 4, 0, Math.PI*2); ctx.fill(); addLabel('F'+(index+1), f_Vat - 4, centerY + 18, '#c0392b');
+            ctx.beginPath(); ctx.arc(f_Anh, centerY, 4, 0, Math.PI*2); ctx.fill(); addLabel("F'"+(index+1), f_Anh - 4, centerY + 18, '#c0392b');
+        });
+
+        let statsHTML = '';
+
+        objects.forEach((obj, indexObj) => {
+            let startPoint = { x: obj.x, y: obj.y };
+            let A_point = { x: obj.x, y: centerY };
+            let B_point = { x: obj.x, y: obj.y };
+
+            if(obj.type === 'S') {
+                ctx.fillStyle = '#f39c12'; ctx.beginPath(); ctx.arc(obj.x, obj.y, 7, 0, Math.PI*2); ctx.fill();
+                addLabel('S' + (indexObj+1), obj.x - 12, obj.y - 12, '#000');
+            } else {
+                let rad = obj.angle * Math.PI / 180;
+                B_point = { x: obj.x - Math.sin(rad) * obj.h, y: centerY - Math.cos(rad) * obj.h };
+                startPoint = B_point;
+                ctx.beginPath(); ctx.strokeStyle = '#2980b9'; ctx.lineWidth = 3.5;
+                ctx.moveTo(A_point.x, A_point.y); ctx.lineTo(B_point.x, B_point.y); ctx.stroke();
+                drawArrowHead(A_point, B_point, '#2980b9');
+                addLabel('A'+(indexObj+1), A_point.x - 6, A_point.y + 18); addLabel('B'+(indexObj+1), B_point.x - 14, B_point.y - 10);
+            }
+
+            if(lenses.length > 0) {
+                let imgChainS = [startPoint];
+                let imgChainA = [A_point];
+                for (let l of lenses) {
+                    imgChainS.push(getImagePoint(imgChainS[imgChainS.length - 1], l));
+                    imgChainA.push(getImagePoint(imgChainA[imgChainA.length - 1], l));
+                }
+
+                statsHTML += `<b style="font-size:1rem; color:#2c3e50;">Vật ${indexObj+1}:</b><br>`;
+                let k_total = 1;
+
+                for (let i = 0; i < lenses.length; i++) {
+                    let L = lenses[i];
+                    let curObjS = imgChainS[i];
+                    let curImgS = imgChainS[i+1];
+                    
+                    let yD = centerY + 40 + indexObj * 25 + i * 15;
+                    ctx.beginPath(); ctx.moveTo(curObjS.x, yD); ctx.lineTo(L.x, yD); 
+                    ctx.strokeStyle='rgba(52, 73, 94, 0.4)'; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(curObjS.x, yD - 4); ctx.lineTo(curObjS.x, yD + 4); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(L.x, yD - 4); ctx.lineTo(L.x, yD + 4); ctx.stroke();
+                    addLabel(`d${i+1} = ${Math.round(curImgS.d)} cm`, (curObjS.x + L.x)/2 - 20, yD - 3, '#34495e', '11px sans-serif');
+
+                    if(Math.abs(curImgS.d_prime) < 3000) {
+                        let yDp = centerY - 40 - indexObj * 25 - i * 15;
+                        ctx.beginPath(); ctx.moveTo(L.x, yDp); ctx.lineTo(curImgS.x, yDp); 
+                        ctx.strokeStyle='rgba(142, 68, 173, 0.4)'; ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(L.x, yDp - 4); ctx.lineTo(L.x, yDp + 4); ctx.stroke();
+                        ctx.beginPath(); ctx.moveTo(curImgS.x, yDp - 4); ctx.lineTo(curImgS.x, yDp + 4); ctx.stroke();
+                        addLabel(`d'${i+1} = ${Math.round(Math.abs(curImgS.d_prime))} cm`, (L.x + curImgS.x)/2 - 20, yDp - 3, '#8e44ad', '11px sans-serif');
+                    }
+                    
+                    k_total *= curImgS.k;
+                    statsHTML += `• Qua TK${i+1}: d=${Math.round(curImgS.d)}cm, d'=${Math.round(curImgS.d_prime)}cm | k=${curImgS.k.toFixed(2)}<br>`;
+                }
+                
+                let finalS = imgChainS[lenses.length];
+                let finalType = finalS.isVirtual ? "<b style='color:#e67e22'>ẢO</b>" : "<b style='color:#8e44ad'>THẬT</b>";
+                statsHTML += `👉 <b style="color:#d35400">Ảnh cuối:</b> ${finalType} | k tổng = ${k_total.toFixed(2)}<hr>`;
+
+                let r1 = document.getElementById('ray1').checked;
+                let r2 = document.getElementById('ray2').checked;
+                let r3 = document.getElementById('ray3').checked;
+                let r4 = document.getElementById('ray4').checked;
+
+                if(r1) { drawMultiLensRay(buildPathData(startPoint, imgChainS, startPoint.y), '#e74c3c'); }
+                if(r2) { drawMultiLensRay(buildPathData(startPoint, imgChainS, centerY), '#2ecc71'); }
+                if(r3) {
+                    let F0 = lenses[0].type === 'HT' ? lenses[0].x - lenses[0].f : lenses[0].x + Math.abs(lenses[0].f);
+                    if(Math.abs(F0 - startPoint.x) > 0.5) {
+                        let m = (centerY - startPoint.y) / (F0 - startPoint.x);
+                        let firstHitY = startPoint.y + m * (lenses[0].x - startPoint.x);
+                        drawMultiLensRay(buildPathData(startPoint, imgChainS, firstHitY), '#9b59b6');
+                    }
+                }
+                if(r4) { drawMultiLensRay(buildPathData(startPoint, imgChainS, centerY - 80), '#d35400'); }
+
+                for (let i = 1; i <= lenses.length; i++) {
+                    let curImgS = imgChainS[i];
+                    let curImgA = imgChainA[i];
+                    let isFinal = (i === lenses.length);
+                    
+                    if(curImgS.infinitelyFar) continue;
+
+                    if(obj.type === 'S') {
+                        ctx.fillStyle = curImgS.isVirtual ? '#e67e22' : '#8e44ad';
+                        if(!isFinal) ctx.globalAlpha = 0.4;
+                        ctx.beginPath(); ctx.arc(curImgS.x, curImgS.y, 7, 0, Math.PI*2); ctx.fill();
+                        ctx.globalAlpha = 1.0;
+                        addLabel(isFinal ? `S'${indexObj+1}` : `S'${indexObj+1}_${i}`, curImgS.x + 8, curImgS.y + 5, ctx.fillStyle);
+                    } else {
+                        ctx.beginPath(); ctx.strokeStyle = curImgS.isVirtual ? '#e67e22' : '#8e44ad';
+                        ctx.lineWidth = isFinal ? 3.5 : 1.5;
+                        if(!isFinal) ctx.globalAlpha = 0.4;
+                        if(curImgS.isVirtual) ctx.setLineDash([5, 5]);
+                        ctx.moveTo(curImgA.x, curImgA.y); ctx.lineTo(curImgS.x, curImgS.y); ctx.stroke(); ctx.setLineDash([]);
+                        drawArrowHead(curImgA, curImgS, ctx.strokeStyle);
+                        ctx.globalAlpha = 1.0;
+                        addLabel(isFinal ? `A'${indexObj+1}` : `A'${indexObj+1}_${i}`, curImgA.x - 6, curImgA.y + 18, ctx.strokeStyle);
+                        addLabel(isFinal ? `B'${indexObj+1}` : `B'${indexObj+1}_${i}`, curImgS.x + 10, curImgS.y + 5, ctx.strokeStyle);
+                    }
+                }
+            }
+        });
+
+        drawLabels();
+
+        if(lenses.length > 0 && objects.length > 0) {
+            document.getElementById('imageStats').innerHTML = statsHTML;
+        } else if (objects.length === 0) {
+            document.getElementById('imageStats').innerHTML = 'Vui lòng thêm vật sáng!';
+        }
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        let rect = canvas.getBoundingClientRect();
+        let mx = e.clientX - rect.left; let my = e.clientY - rect.top;
+        for (let o of objects) { if (Math.hypot(mx - o.x, my - (o.type==='S' ? o.y : centerY)) < 25) { dragging = o; return; } }
+        for (let l of lenses) { if (Math.abs(mx - l.x) < 25) { dragging = l; return; } }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        if(!dragging) return;
+        let rect = canvas.getBoundingClientRect();
+        let newX = e.clientX - rect.left;
+        
+        if(lenses.includes(dragging)) {
+            let idx = lenses.indexOf(dragging);
+            let minX = idx > 0 ? lenses[idx-1].x + 30 : 50;
+            let maxX = idx < lenses.length - 1 ? lenses[idx+1].x - 30 : w - 50;
+            dragging.x = Math.max(minX, Math.min(maxX, newX));
+        } else {
+            dragging.x = newX;
+            if(dragging.type === 'S') dragging.y = e.clientY - rect.top;
+        }
+        triggerRay();
+    });
+
+    canvas.addEventListener('mouseup', () => { dragging = null; });
+    canvas.addEventListener('mouseleave', () => { dragging = null; });
+
+    addLens('HT'); addObject('AB');
+</script>
+</body>
+</html>
